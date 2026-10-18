@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.iml
+
+# Supabase local state (created if CLI is used later)
+backend/supabase/.temp/
+backend/supabase/.branches/
+
+# Node
+node_modules/
+
+# Flutter/Dart tooling outside app/ (app/.gitignore covers the rest;
+# note: app/pubspec.lock IS committed — apps pin their deps)
+.dart_tool/
+.packages
+build/
+
+# Logs
+*.log
