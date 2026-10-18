@@ -1,0 +1,9 @@
+{
+  "name": "pyrrose-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Static Three.js viewer for shared Pyrrose bouquets",
+  "scripts": {
+    "dev": "npx --yes serve -l 4173 ."
+  }
+}

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pyrrose — your bouquet</title>
+  <link rel="stylesheet" href="src/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <span class="brand">Pyrrose</span>
+      <span id="bouquet-title" class="title"></span>
+    </header>
+    <canvas id="scene"></canvas>
+    <div id="info-card" class="info-card hidden" aria-live="polite">
+      <button id="info-close" class="info-close" aria-label="Close">×</button>
+      <h2 id="info-name"></h2>
+      <p id="info-scientific" class="scientific"></p>
+      <p id="info-meaning"></p>
+    </div>
+    <footer class="foot">
+      Made with <a href="#" id="app-link">Pyrrose</a> · drag to rotate, tap a flower
+    </footer>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
