@@ -1,0 +1,48 @@
+# Pyrrose — work report, 2026-10-19
+
+## 1. Flutter skill review (.opencode/skills/flutter/SKILL.md)
+- Structure OK (frontmatter, "Use when" description, concise), but content is
+  generic textbook advice and mismatches this repo (mentions Bloc & GoRouter;
+  project uses Riverpod-only + plain Navigator).
+- Also: "flutter create" workflow step irrelevant for existing project;
+  header promises scripts/references dirs that don't exist.
+- Suggested rewrite around actual stack — NOT DONE YET, pending decision.
+
+## 2. Project gap audit -> TODO.txt
+Found everything declared/scaffolded but not set up:
+- Supabase: no project created, migration never applied, Supabase.initialize()
+  never called, BouquetRepository doesn't exist, config getters never read.
+- Unused deps: share_plus, hooks (possibly wrong pkg, meant flutter_hooks),
+  almost all of flutter_riverpod, WEB_VIEWER_BASE_URL dart-define.
+- Empty scaffolds: lib/features/{builder,catalog,sharing}, lib/state,
+  viewer/src/scene, viewer has no npm deps; flowers.json never loaded.
+- Roadmap: Phases 2-6 all unchecked (only Phase 1 scaffolding done).
+Wrote it all down in TODO.txt at repo root.
+
+## 3. Flower design entry point (answered, no work needed)
+- Design lives in app/assets/catalog/flowers.json (box-part specs).
+- Rendered Phase 2 (flutter_scene, in-app) and Phase 4 (Three.js, viewer).
+- After edits: dart run tool/sync_catalog.dart re-syncs into viewer/data/.
+
+## 4. Rose visual preview (NOT a phase move)
+- Wrote viewer/src/main.js: fetches data/flowers.json, renders the first
+  flower (Rose) as box meshes, OrbitControls, bounding-box camera framing,
+  ambient+directional light, topbar title. Visual-only: no tap picking,
+  no info card, no changes anywhere in app/, roadmap unchanged.
+- Verified: deno parse check passed; served viewer and confirmed
+  index.html / src/main.js / data/flowers.json all return 200 and catalog
+  parses (Rose, 6 parts).
+
+## Run it
+    cd viewer
+    python3 -m http.server 4173
+    # open http://localhost:4173
+
+IMPORTANT: node/npm are NOT installed on this machine, so the README's
+"npm run dev" will not work. The viewer needs no node anyway (three.js loads
+from CDN) — python's http.server is enough. Alternative: brew install node,
+then npm run dev works as documented.
+
+## Carried over (not done today)
+- Everything in TODO.txt (Supabase wiring, unused deps, Phases 2-6).
+- Rewrite of .opencode/skills/flutter/SKILL.md to match the real stack.
