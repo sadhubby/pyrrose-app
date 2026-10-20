@@ -1,0 +1,39 @@
+# Pyrrose — missing / not yet set up
+# Written 2026-10-19. Phases refer to README.md roadmap.
+
+## Supabase (Phase 5, wiring blocks Phase 3 local-save fallback)
+[ ] Create Supabase project (free tier)
+[ ] Apply backend/supabase/migrations/0001_init.sql
+      (Dashboard SQL Editor paste, or: supabase link + supabase db push)
+[ ] Call Supabase.initialize() at startup — nowhere in app/lib yet
+[ ] Build BouquetRepository (referenced in app/lib/core/config/app_config.dart:5,
+      doesn't exist) with local-only fallback when isSupabaseConfigured == false
+[ ] Actually read AppConfig.isSupabaseConfigured / isWebViewerConfigured —
+      both getters defined (app/lib/core/config/app_config.dart:17,20) but never used
+
+## Dependencies installed but unused
+[ ] share_plus — no share flow exists (needed for Phase 3 "share" step)
+[ ] hooks: ^2.0.0 — zero usages; likely wrong package, probably meant flutter_hooks
+      (decide: switch to flutter_hooks or drop the dependency)
+[ ] flutter_riverpod — only ProviderScope in app/lib/main.dart:8;
+      no providers anywhere, lib/state/ is empty (.gitkeep only)
+[ ] WEB_VIEWER_BASE_URL dart-define — defined in AppConfig, never read
+
+## Empty scaffolds (directories exist, .gitkeep only)
+[ ] app/lib/features/builder/
+[ ] app/lib/features/catalog/
+[ ] app/lib/features/sharing/
+[ ] app/lib/state/            # Riverpod providers/controllers go here
+[ ] viewer/src/scene/         # Three.js scene code goes here
+[ ] viewer: npm install three  # viewer/package.json has NO dependencies at all
+[ ] Load assets/catalog/flowers.json in the app — no rootBundle usage yet
+
+## Roadmap phases (README.md:44-49 — all but Phase 1 unchecked)
+[ ] Phase 2 — flower catalog + flutter_scene renderer + tap-picking
+[ ] Phase 3 — builder UI (slot ring, customizer, local save, share);
+      app/lib/views/builder/builder_screen.dart is a placeholder
+[ ] Phase 4 — Three.js viewer (orbit, tap -> info card, sample data);
+      viewer/src/main.js is a placeholder
+[ ] Phase 5 — Supabase go-live + GitHub Pages hosting
+      (hosting URL feeds WEB_VIEWER_BASE_URL)
+[ ] Phase 6 — voice/video/Spotify attachments, auth, Blender GLTF, iOS
