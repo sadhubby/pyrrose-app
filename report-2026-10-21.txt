@@ -1,0 +1,117 @@
+# Pyrrose — work report, 2026-10-21
+
+## 1. Goal for the day
+- Get the Goxel-exported rose (~/Documents/rose.gltf) into the project's toolchain so it can be
+  viewed in the web viewer and later used by the app. Mobile bouquet-builder work deferred.
+- No app/viewer code was written today — the day was spent on research, a validated approach,
+  and a written plan (.opencode/plans/gltf-model-pipeline.md).
+
+## 2. Repo recon (what the constraints are)
+- app/hook/build.dart already calls buildScenes; the hook only discovers .glb/.fscene/.fsceneb
+  (_sceneSourceExtensions, build_hooks.dart:58). A .gltf dropped into app/assets/ would be
+  silently ignored -> a .glb conversion step is mandatory.
+- flutter_scene runtime importer honours glTF samplers (runtime_importer/texture_builder.dart:170),
+  but the offline build-hook importer DROPS them ("gltf-sampler: glTF samplers are dropped here",
+  fscene_emitter.dart:90). Anything relying on a sampler behaves differently app vs viewer.
+- viewer/ has zero npm dependencies and no build step; viewer/index.html:8-15 already has an
+  importmap mapping "three" -> jsDelivr three@0.180.0 and "three/addons/" -> examples/jsm/, so
+  three/addons/loaders/GLTFLoader.js resolves with zero install.
+
+## 3. Decoding ~/Documents/rose.gltf
+- 167,177 bytes; 3 data-URI buffers; 1 PNG palette image 128x128 (colourType 2, bitDepth 8);
+  1 mesh / 1 primitive / 1 material (baseColorTexture, metallic 0.2, roughness 0.5, no
+  baseColorFactor); 2 nodes; no samplers; no extensions.
+- Geometry: 2578 verts / 680 faces / 1360 tris. glTF-space bbox X[-1,8] Y[0,16] Z[-3,7]
+  (9 x 10 x 16 voxels, 1 unit = 1 voxel). Stem core x[1,2] (axis 1.5), stem depth Z centre 1,
+  bloom z[9,16], base at Y=0.
+- Palette PNG: exactly 1024 uniform 4x4-px blocks = a 32x32 cell grid (verified 1024/1024 uniform).
+- Root node carries goxel's Z-up -> Y-up matrix, so the model is already upright after import.
+
+## 4. THE ROOT CAUSE: goxel's glTF exporter has a grid mismatch
+- src/volume_to_vertices.c:313 -> s = max(next_pow2(ceil(log2(palette->size))), 16) = 16 cells,
+  and the UV is written as texcoord = (c % s + 0.5) / s, (c / s + 0.5) / s.
+- src/formats/gltf.c:409 -> the palette texture is written with s/pix_size = ceil(sqrt(size)) = 32
+  cells per row, 4 px each.
+- So the UVs address a 16x16 grid of 8 px blocks that the 128x128 texture never received.
+  Every viewer therefore samples the wrong texel -> wrong colours (not a viewer bug, not ours).
+- The true palette index is recoverable from the UV alone:
+      cm = u*16 - 0.5;  cq = v*16 - 0.5;  c = 16*cq + cm   -> entry c -> 4 px block (c%32, c/32)
+- Verified: 155 distinct cells (exactly matching the independent earlier decode), stem 100% green,
+  bloom 95% warm/red. Wrong mappings (identity 0% stem green, swap 41%, row/4 100% but 134 cells)
+  were rejected by that test.
+
+## 5. Colour space
+- glTF COLOR_0 is LINEAR. The palette PNG holds raw sRGB bytes, so the bake must convert
+  sRGB -> linear, otherwise the flower washes out.
+- goxel's own vertex-colour path already does this correctly: srgba8_to_rgba -> srgb8_to_rgb
+  (src/utils/color.c:25-51, the standard 0.04045 / 2.4 curve).
+- BONUS: goxel has a "Vertex Color" export checkbox (src/formats/gltf.c:502). Ticked, it writes
+  COLOR_0 directly with no palette texture at all -> simpler and exact. Converter supports both.
+
+## 6. Pipeline validated end-to-end (in memory, nothing written to the repo)
+- Tools: @gltf-transform/core 4.5.1 + pngjs 7.0.0 + gltf-validator (scratch dir /tmp/opencode).
+- Steps proven: read .gltf JSON -> merge 3 data-URI buffers into 1 (adjusting bufferView
+  byteOffsets) -> readJSON -> decode palette PNG -> recover true index -> sRGB->linear -> write
+  COLOR_0 VEC4 accessor -> drop TEXCOORD_0 -> material.setBaseColorTexture(null) -> dispose
+  textures -> prune() -> writeBinary -> GLB.
+- Gotchas found and solved: (a) GLB forbids 0-1 buffers -> merge at JSON level before reading;
+  (b) the dead TEXCOORD_0 accessor survived -> prune() removes it (validator flagged it as INFO).
+- RESULT: 141 KB -> 120 KB GLB (smaller than the .gltf), 1 buffer, 0 textures,
+  semantics POSITION+NORMAL+COLOR_0, 2578 verts / 4080 indices.
+- Khronos official glTF-Validator: 0 errors, 0 warnings, 1 info (the unused accessor, since pruned).
+- Round-trip re-read: stem avg linear RGB (0.035, 0.322, 0.001) = green, bloom
+  (0.624, 0.106, 0.056) = red. Colours are correct, not the greens seen before.
+
+## 7. Renderer-side verification
+- flutter_scene DOES support COLOR_0: importer/src/gltf/primitive_packer.dart:172 -> _readOptionalColor
+  (VEC4 float, used as-is, no sRGB conversion -> linear required, as baked); the value reaches the
+  shader via the packed vertex buffer (offsets 10-13) and material.vertexColorWeight (default 1.0).
+- flutter_scene decomposes node matrices (bounds_baker.dart:495) -> goxel's Z-up->Y-up root matrix
+  is honoured, so the flower stands upright in the app too.
+- three.js GLTFLoader needs no new dependency (importmap already covers three/addons/).
+
+## 8. Decisions taken
+- Converter implementation: Node + @gltf-transform + pngjs (chose the library over hand-rolling
+  the GLB container / PNG decoder) -> a ~60-line script instead of ~200 lines of Dart, at the cost
+  of a second toolchain (tool/package.json + npm install).
+- Tool placement: a CLI script in tool/, next to tool/sync_catalog.dart — not a separate app.
+- Asset strategy: bake colours to COLOR_0 and DELETE the palette texture. Works in every renderer,
+  needs no sampler support (which the build hook drops), and avoids mip-level mush when the
+  flower is small on screen (a 4 px palette cell collapses to mush at mip 2).
+- Normalisation (option 1): scale 0.0625 (16 voxels -> 1.0 unit tall), offset [-0.09375, 0, -0.0625]
+  -> stem axis on X=0, stem depth centred on Z=0, base on Y=0. Convention: world = offset + scale*pos.
+  Stored in the catalog entry, not baked into the asset.
+- Catalog schema: model: { file: "rose.glb", scale, offset } — bare filename, each consumer resolves
+  it (app -> assets/models/<file>, viewer -> data/<file>), so one catalog serves both renderers.
+- Roadmap: add a separate "Phase 2b — 3D model assets" entry to README.md after Phase 2; reword
+  Phase 6 "Blender GLTF" -> "Blender authoring"; fix README line 27 ("one geometry format"), which
+  becomes false once there are two geometry kinds (box-part specs + glTF models).
+
+## 9. Plan written
+- .opencode/plans/gltf-model-pipeline.md — 6 steps: (1) tool/package.json + tool/gltf_to_glb.mjs,
+  (2) move rose.gltf to app/assets/models/source/ and generate app/assets/models/rose.glb,
+  (3) add the rose-voxel catalog entry, (4) extend tool/sync_catalog.dart to copy *.glb into
+  viewer/data/, (5) viewer/src/main.js GLTFLoader branch + ?flower=<id>, (6) README/TODO updates.
+- Verification: converter self-check + Khronos validator, flutter build web (manifest contains
+  assets/models/rose), viewer at http://localhost:4173/?flower=rose-voxel shows an upright red
+  rose, flutter analyze clean.
+
+## 10. Correction to report-2026-10-19.txt
+- "node/npm are NOT installed on this machine" is no longer true: node v24.18.0 / npm 11.16.0 are
+  available now. (The viewer still needs no npm at all — three.js comes from the CDN importmap.)
+
+## Run it
+    cd viewer && npm run dev          # or: python3 -m http.server 4173
+    # open http://localhost:4173/?flower=rose-voxel   (after Phase 2b is implemented)
+
+## Open question
+- Does the goxel's GLTF export dialog have a "Vertex Color" checkbox? If yes, re-exporting with it
+  ticked gives COLOR_0 directly (already linear, no palette decode at all). The converter handles
+  both paths either way; the palette path is the one the current file needs, and it is validated.
+
+## Carried over (not done today)
+- Everything in TODO.txt (Supabase wiring, unused deps, Phases 2-6).
+- Uncommitted from 2026-10-20: procedural tulip (app/assets/catalog/flowers.json,
+  viewer/data/flowers.json, viewer/src/main.js, viewer/src/scene/proceduralTulip.js) — nothing
+  from today was committed either (only .opencode/plans/gltf-model-pipeline.md was added).
+- Rewrite of .opencode/skills/flutter/SKILL.md to match the real stack.
