@@ -1,0 +1,126 @@
+# Pyrrose — work report, 2026-10-22
+
+## 1. Goal for the day
+- The laptop crashed at the end of 2026-10-21, mid-implementation of the Phase 2b
+  glTF pipeline. Today: recover the session, check that nothing was left half
+  written, verify the pipeline end to end, and finish the plan's last step
+  (docs).
+- No new feature beyond finishing Phase 2b's tool/viewer side. The app side of
+  Phase 2 is still not started (see §7).
+
+## 2. Session recovery — what the crash left behind
+- Working tree was intact; nothing was lost. `git status` showed 4 modified
+  files + 6 untracked, all belonging to Phase 2b plus the carried-over
+  procedural tulip from 2026-10-20.
+- The last commit was "docs: report october 21" (76da528); the plan
+  .opencode/plans/gltf-model-pipeline.md and app/assets/models/source/rose.gltf
+  were already committed. Everything the plan calls steps 1-5 was on disk but
+  uncommitted; step 6 (docs) was not started.
+- Recovered as uncommitted work:
+  - tool/package.json, tool/package-lock.json, tool/gltf_to_glb.mjs (new)
+  - app/assets/models/rose.glb (new, 120 476 bytes)
+  - viewer/src/scene/proceduralTulip.js (new)
+  - app/assets/catalog/flowers.json + viewer/data/flowers.json (tulip and
+    rose-voxel entries)
+  - tool/sync_catalog.dart (now also copies *.glb into viewer/data/)
+  - viewer/src/main.js (GLTFLoader branch + ?flower=<id>)
+
+## 3. Verification of the recovered code (all green)
+- Converter re-run from scratch on the committed source:
+  `node tool/gltf_to_glb.mjs app/assets/models/source/rose.gltf <out.glb> --validate`
+  → 120 476 bytes, POSITION+NORMAL+COLOR_0, 2578 verts / 1360 tris,
+  155 distinct colours, **Khronos validator 0 errors, 0 warnings, 0 infos**.
+  The regenerated file is byte-identical to the committed app/assets/models/rose.glb,
+  so the asset on disk is exactly what the committed converter produces.
+- `flutter build web` → app/flutter_scene_generated/manifest.json contains
+  `assets/models/rose` → `scene.rose.d66bc2d2.fsceneb` (17 KB). The build hook
+  picks the .glb up and compiles it; the .gltf source is correctly ignored.
+- `flutter analyze` → No issues found.
+- `dart run tool/sync_catalog.dart` → copies the catalog and rose.glb into
+  viewer/data/; both files byte-identical to their sources afterwards.
+- Viewer, driven in headless Chrome (--dump-dom + a throwaway probe page that
+  read back the live three.js scene through `window.__pyrrose`, then deleted):
+  | ?flower= | result |
+  |---|---|
+  | rose-voxel | model path; world bbox x[-0.156,0.406] **y[0,1]** z[-0.25,0.375]; 1 mesh, 2578 verts, `vertexColors: true`, colour itemSize 4 |
+  | tulip | procedural path; stem #388e3c, petals #ff5252/#ff6f61 |
+  | rose | box-part path; the six original coloured boxes |
+  | (none/unknown) | falls back to tulip |
+- Colours sampled in the rendered scene, per vertical band of the voxel rose
+  (linear RGB, as glTF COLOR_0 is linear):
+  - bottom 10 % (stem) **0.038, 0.326, 0.002** → green
+  - middle 10 % (leaves) 0.274, 0.185, 0.007 → yellow-green
+  - top 10 % (bloom) **0.610, 0.016, 0.002** → red
+  → the goxel palette-grid bug is genuinely fixed; no green bloom, no sideways
+  flower, base exactly on y = 0.
+
+## 4. Two real bugs found and fixed in the recovered code
+1. **tool/gltf_to_glb.mjs reported the wrong world bbox.**
+   The old `worldMatrix()` picked the last root node that had children and used
+   its matrix for every primitive — right for this one file, wrong in general.
+   While rewriting it to map each mesh to its own node matrix, the rewritten
+   walk produced an *unrotated* bbox, which exposed the actual API trap:
+   `Root.listNodes()` returns **every node flat**, not the scene roots, so
+   nested nodes were re-rooted and their parent transform dropped. The walk now
+   starts from `Scene.listChildren()` (and falls back to root-less nodes), and
+   the bbox is back to the expected x[-1,8] y[0,16] z[-3,7] with the Z-up→Y-up
+   rotation applied.
+2. **viewer/src/main.js hard-coded the tulip twice**
+   (`flower.procedural === 'tulip' || flower.id === 'tulip'`). Replaced with a
+   `PROCEDURAL_BUILDERS` registry keyed by the catalog's `procedural` field,
+   and the accent colour is now parsed with `parseInt(hex, 16)` instead of
+   string-replacing '#' with '0x'.
+
+## 5. Docs finished (plan step 6)
+- README.md: repository layout now lists `app/assets/models/` and the tool
+  pipeline; the false line "One geometry format … is rendered twice" is
+  replaced by a description of the two geometry kinds (box-part specs and
+  glTF models) and a short note on why the palette is baked to COLOR_0;
+  development section gained the converter command; roadmap gained
+  "Phase 2b — 3D model assets" and Phase 6's "Blender GLTF" became
+  "Blender authoring".
+- TODO.txt: new "Phase 2b — 3D model assets" section listing what is still
+  missing on the app side, plus the goxel "Vertex Color" open question.
+
+## 6. Decisions
+- Kept the model asset in the repo (rose.glb, 120 KB) — it is small, and it is
+  the single source both renderers read. The 167 KB .gltf source stays in
+  app/assets/models/source/ so the asset can be regenerated.
+- The tool stays a Node script in tool/ (second toolchain, ~300 lines instead
+  of ~200 lines of hand-rolled GLB/PNG code in Dart).
+- Baking to COLOR_0 and deleting the palette texture stays the strategy: it
+  works in both renderers, needs no sampler support (the flutter_scene build
+  hook drops samplers), and avoids a 4-px palette cell turning to mush in the
+  mip levels when the flower is small on screen.
+
+## 7. What is still missing
+- **The app renders nothing yet.** No code loads assets/catalog/flowers.json,
+  no flutter_scene scene is built, no `loadScene('assets/models/rose')` call
+  exists. The .glb reaches flutter_scene_generated/ but no screen shows it.
+  This is Phase 2 work and was deliberately not started today.
+- The app side also needs the catalog's model scale/offset applied the same way
+  the viewer does (world = offset + scale · position).
+- Only one authored model so far (the voxel rose).
+- Everything in TODO.txt (Supabase wiring, unused deps, Phases 2-6).
+- Rewrite of .opencode/skills/flutter/SKILL.md to match the real stack.
+
+## 8. Open question (unchanged)
+- Does the goxel GLTF export dialog have a "Vertex Color" checkbox? If yes,
+  re-exporting with it ticked gives COLOR_0 directly (already linear, no
+  palette decode). The converter supports both paths; the palette path is what
+  the current file needs and is validated.
+
+## Run it
+    cd tool && npm install
+    node tool/gltf_to_glb.mjs app/assets/models/source/rose.gltf app/assets/models/rose.glb --validate
+    dart run tool/sync_catalog.dart
+    cd viewer && npm run dev        # or: python3 -m http.server 4173
+    # http://localhost:4173/?flower=rose-voxel
+    cd app && flutter run -d chrome
+
+## Repository state
+- Nothing committed today; the work is in the working tree for review:
+  README.md, TODO.txt, app/assets/catalog/flowers.json, viewer/data/flowers.json,
+  viewer/src/main.js, tool/sync_catalog.dart modified; tool/gltf_to_glb.mjs,
+  tool/package.json, tool/package-lock.json, tool/node_modules/ (ignored),
+  app/assets/models/rose.glb, viewer/data/rose.glb, viewer/src/scene/proceduralTulip.js added.

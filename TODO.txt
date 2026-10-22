@@ -1,5 +1,19 @@
 # Pyrrose — missing / not yet set up
-# Written 2026-10-19. Phases refer to README.md roadmap.
+# Written 2026-10-19; refreshed 2026-10-23 after the laptop crash.
+# Phases refer to README.md roadmap.
+
+## Session recovery (2026-10-23)
+[x] Recovered the uncommitted Phase 2 app work: catalog feature (domain/data/
+      application), catalog screen + widgets, providers, and tests.
+[x] flutter analyze clean; flutter test 15/15 passing; flutter build web
+      produces assets/models/rose in flutter_scene_generated/manifest.json.
+[x] README Phase 2 checkbox synced with the completed work.
+[ ] Runtime smoke test the catalog screen on Chrome and Android after recovery
+      (the build passes, but no device/simulator run since the crash).
+[ ] Add a widget test for Home -> Browse flowers and the catalog screen
+      (current tests cover catalog parsing/geometry helpers only).
+[ ] report-2026-10-22.txt still says the app renders nothing; add a 2026-10-23
+      recovery report/addendum when ready (the historical report is unchanged).
 
 ## Supabase (Phase 5, wiring blocks Phase 3 local-save fallback)
 [ ] Create Supabase project (free tier)
@@ -13,27 +27,39 @@
 
 ## Dependencies installed but unused
 [ ] share_plus — no share flow exists (needed for Phase 3 "share" step)
-[ ] hooks: ^2.0.0 — zero usages; likely wrong package, probably meant flutter_hooks
-      (decide: switch to flutter_hooks or drop the dependency)
-[ ] flutter_riverpod — only ProviderScope in app/lib/main.dart:8;
-      no providers anywhere, lib/state/ is empty (.gitkeep only)
+[x] hooks: ^2.0.0 — required by app/hook/build.dart for flutter_scene's build
+      hook; this is the Dart build-hooks package, not flutter_hooks. Keep.
+[x] flutter_riverpod — catalog providers in features/catalog/application/;
+      lib/state/ is still an empty placeholder (decision below)
 [ ] WEB_VIEWER_BASE_URL dart-define — defined in AppConfig, never read
 
-## Empty scaffolds (directories exist, .gitkeep only)
+## Scaffolds
 [ ] app/lib/features/builder/
-[ ] app/lib/features/catalog/
+[x] app/lib/features/catalog/ — domain/data/application split; catalog loads via rootBundle
 [ ] app/lib/features/sharing/
-[ ] app/lib/state/            # Riverpod providers/controllers go here
-[ ] viewer/src/scene/         # Three.js scene code goes here
-[ ] viewer: npm install three  # viewer/package.json has NO dependencies at all
-[ ] Load assets/catalog/flowers.json in the app — no rootBundle usage yet
+[ ] app/lib/state/ — still empty; feature-local providers live in
+      features/*/application/ instead. Decide whether to keep or remove this folder.
+[x] viewer/src/scene/ — proceduralTulip.js; flower scene assembly lives in src/main.js
+[x] viewer: three via the CDN import map (viewer/package.json needs no npm dependency)
+[x] Load assets/catalog/flowers.json in the app (FlowerCatalogRepository)
 
-## Roadmap phases (README.md:44-49 — all but Phase 1 unchecked)
-[ ] Phase 2 — flower catalog + flutter_scene renderer + tap-picking
+## Roadmap phases (README.md:62-70)
+[x] Phase 2 — flower catalog + flutter_scene renderer + tap-picking
+[x] Phase 2b — 3D model assets: glTF → .glb pipeline, model-backed flowers
 [ ] Phase 3 — builder UI (slot ring, customizer, local save, share);
       app/lib/views/builder/builder_screen.dart is a placeholder
 [ ] Phase 4 — Three.js viewer (orbit, tap -> info card, sample data);
-      viewer/src/main.js is a placeholder
+      orbit + ?flower= work in viewer/src/main.js; tap/info card still to do
 [ ] Phase 5 — Supabase go-live + GitHub Pages hosting
       (hosting URL feeds WEB_VIEWER_BASE_URL)
-[ ] Phase 6 — voice/video/Spotify attachments, auth, Blender GLTF, iOS
+[ ] Phase 6 — voice/video/Spotify attachments, auth, Blender authoring, iOS
+
+## Phase 2b — 3D model assets
+[x] App side: catalog + flutter_scene scene + loadScene('assets/models/rose') render
+      the voxel rose; the build hook still produces the .fsceneb manifest entry.
+[x] App side: apply the catalog model scale/offset the same way the viewer does
+      (world = offset + scale * position).
+[ ] Check whether the goxel export dialog has a "Vertex Color" checkbox — if it does,
+      re-exporting gives COLOR_0 directly (already linear) and skips the palette decode.
+      The converter handles both paths either way.
+[ ] Author more models; the catalogue only has the voxel rose so far.

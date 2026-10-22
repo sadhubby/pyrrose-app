@@ -10,6 +10,7 @@ each flower to see its name, scientific name, and meaning.
 pyrrose-app/
 ├── app/                           # Flutter client (Android first, iOS later)
 │   ├── assets/catalog/flowers.json# canonical flower geometry + meanings
+│   ├── assets/models/             # glTF/GLB models (source/ holds the originals)
 │   └── lib/
 │       ├── core/                  # config, theme, routing
 │       ├── features/              # builder, catalog, sharing logic
@@ -24,16 +25,34 @@ pyrrose-app/
 └── tool/                          # dev scripts
 ```
 
-One geometry format (`flowers.json` box-part specs) is rendered twice: by
-`flutter_scene` in the app and by Three.js in the viewer.
+Flowers come in three shapes, all listed in `flowers.json` and rendered twice —
+by `flutter_scene` in the app and by Three.js in the viewer:
+
+- **box-part specs** — a list of coloured boxes, the procedural fallback.
+- **procedural builders** — code that assembles a flower from primitives,
+  keyed by the `procedural` field (currently the tulip).
+- **glTF models** — a `.glb` file plus the scale and offset that place it,
+  e.g. the goxel-authored voxel rose in `app/assets/models/`.
+
+Models are baked to a vertex-colour `.glb` by `tool/gltf_to_glb.mjs`, which
+fixes goxel's palette-grid mismatch (its UVs and its palette texture disagree,
+so every renderer samples the wrong colour) by baking the palette into
+`COLOR_0` and dropping the texture.
 
 ## Development
 
 ```sh
 cd app && flutter run -d chrome        # app on Chrome (or -d <android-device>)
 cd viewer && npm run dev               # viewer at http://localhost:4173
-dart run tool/sync_catalog.dart        # re-sync catalog into viewer after edits
+dart run tool/sync_catalog.dart        # re-sync catalog + models into viewer after edits
 flutter analyze                        # from app/
+```
+
+Re-authoring a model from a goxel export:
+
+```sh
+cd tool && npm install
+node tool/gltf_to_glb.mjs app/assets/models/source/rose.gltf app/assets/models/rose.glb --validate
 ```
 
 Android builds need Flutter GPU, already enabled in the manifest; for CLI runs
@@ -42,8 +61,9 @@ use `flutter run --enable-flutter-gpu`.
 ## Roadmap
 
 - [x] Phase 1 — repository layout & scaffolding
-- [ ] Phase 2 — flower catalog + flutter_scene renderer + tap-picking
+- [x] Phase 2 — flower catalog + flutter_scene renderer + tap-picking
+- [x] Phase 2b — 3D model assets: glTF → .glb pipeline, model-backed flowers
 - [ ] Phase 3 — builder UI (slot ring, customizer, local save, share)
 - [ ] Phase 4 — Three.js viewer (orbit, tap → info card, sample data)
 - [ ] Phase 5 — Supabase go-live + GitHub Pages hosting
-- [ ] Phase 6 — voice/video/Spotify attachments, auth, Blender GLTF, iOS
+- [ ] Phase 6 — voice/video/Spotify attachments, auth, Blender authoring, iOS
