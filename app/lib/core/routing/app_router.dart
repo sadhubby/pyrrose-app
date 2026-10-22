@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../views/builder/builder_screen.dart';
+import '../../views/catalog/catalog_screen.dart';
 import '../../views/home/home_screen.dart';
 
 /// Minimal stack-based navigation for the skeleton. Replaced by go_router
@@ -12,9 +13,14 @@ class AppRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     return HomeScreen(
       onCreateBouquet: () {
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const BuilderScreen()),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const BuilderScreen()));
+      },
+      onBrowseFlowers: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute<void>(builder: (_) => const CatalogScreen()));
       },
     );
   }
