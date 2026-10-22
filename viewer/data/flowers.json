@@ -15,6 +15,28 @@
         { "kind": "box", "at": [0.14, 0.55, 0], "rot": [0, 0, 35], "size": [0.28, 0.05, 0.12], "color": "#4caf50" },
         { "kind": "box", "at": [-0.14, 0.4, 0], "rot": [0, 180, 35], "size": [0.28, 0.05, 0.12], "color": "#43a047" }
       ]
+    },
+    {
+      "id": "tulip",
+      "name": "Tulip",
+      "scientificName": "Tulipa gesneriana",
+      "meaning": "Perfect love",
+      "accent": "#ff5252",
+      "procedural": "tulip",
+      "parts": []
+    },
+    {
+      "id": "rose-voxel",
+      "name": "Rose (voxel)",
+      "scientificName": "Rosa",
+      "meaning": "Love and devotion",
+      "accent": "#c2185b",
+      "model": {
+        "file": "rose.glb",
+        "scale": 0.0625,
+        "offset": [-0.09375, 0, -0.0625]
+      },
+      "parts": []
     }
   ]
 }
