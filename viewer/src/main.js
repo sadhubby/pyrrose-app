@@ -3,9 +3,17 @@
 // controls. Tap-picking, info cards, and bouquet deep-links arrive in Phase 4.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createProceduralTulip } from './scene/proceduralTulip.js';
 
 const titleEl = document.getElementById('bouquet-title');
 const canvas = document.getElementById('scene');
+
+// Flowers built from code rather than from a model file, keyed by the
+// "procedural" field in the catalog.
+const PROCEDURAL_BUILDERS = {
+  tulip: createProceduralTulip,
+};
 
 async function loadCatalog() {
   const res = await fetch('data/flowers.json');
@@ -31,6 +39,19 @@ function buildFlower(flower) {
   return group;
 }
 
+// Loads a glTF model and places it with the catalog entry's scale and
+// offset, so both the app and the viewer show it at the same size and spot.
+async function buildModelFlower(flower) {
+  const { file, scale = 1, offset = [0, 0, 0] } = flower.model;
+  const model = await new GLTFLoader().loadAsync(`data/${file}`);
+
+  const group = new THREE.Group();
+  group.scale.setScalar(scale);
+  group.position.fromArray(offset);
+  group.add(model.scene);
+  return group;
+}
+
 async function main() {
   let catalog;
   try {
@@ -40,7 +61,11 @@ async function main() {
     return;
   }
 
-  const flower = catalog.flowers && catalog.flowers[0];
+  const requested = new URLSearchParams(window.location.search).get('flower');
+  const flower = catalog.flowers
+    && (catalog.flowers.find(f => f.id === requested)
+      || catalog.flowers.find(f => f.id === 'tulip')
+      || catalog.flowers[0]);
   if (!flower) {
     console.error('[pyrrose] catalog contains no flowers');
     return;
@@ -56,8 +81,23 @@ async function main() {
 
   const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
 
-  const flowerGroup = buildFlower(flower);
-  scene.add(flowerGroup);
+  let flowerGroup;
+  if (flower.model) {
+    try {
+      flowerGroup = await buildModelFlower(flower);
+    } catch (err) {
+      console.error(`[pyrrose] failed to load model ${flower.model.file}:`, err);
+      return;
+    }
+    scene.add(flowerGroup);
+  } else if (flower.procedural && PROCEDURAL_BUILDERS[flower.procedural]) {
+    const accent = flower.accent ? Number.parseInt(flower.accent.slice(1), 16) : 0xff5252;
+    flowerGroup = PROCEDURAL_BUILDERS[flower.procedural](accent);
+    scene.add(flowerGroup);
+  } else {
+    flowerGroup = buildFlower(flower);
+    scene.add(flowerGroup);
+  }
 
   const bounds = new THREE.Box3().setFromObject(flowerGroup);
   const center = bounds.getCenter(new THREE.Vector3());
@@ -97,7 +137,8 @@ async function main() {
     renderer.render(scene, camera);
   });
 
-  console.info('[pyrrose] showing', flower.name);
+  console.info('[pyrrose] showing', flower.name, flower.model ? `(${flower.model.file})` : '');
+  window.__pyrrose = { scene, camera, flowerGroup, bounds, size, center, distance };
 }
 
 main();
